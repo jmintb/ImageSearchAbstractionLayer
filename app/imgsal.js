@@ -1,41 +1,69 @@
-var request = require('request');
-var mongoUrl = process.env.MONGOLAB_URI || 'mongodb://localhost:27017/data';
+module.exports = function(app, db, apiKey) {
+    var request = require('request');
+    var queryCollection = db.collection('querys')
 
-function searchForImages(searchTerm, mongo, res) {
-    addQueryToDatabase(searchTerm, mongo);
-    request('https://api.cognitive.microsoft.com/bing/v5.0/images/search?q=' + searchTerm, function(error, response, body) {
-        var images = createImageList(response);
-        res.json(response);
+    app.get('/imagesearch/:search', function(req, res) {
+        var page = req.query.offset === undefined ? 1 : req.query.offset;
+        addQueryToDatabase(req.params.search, page);
+        returnImageList(req.params.search, page, res);
     });
-}
 
-function addQueryToDatabase(searchTerm, mongo) {
-    mondo.connect(mongoUrl, function (err, db) {
-       db.collection('querys').insertOne({_id: 'query', query: {term: searchTerm, time: getTime()}}, function(err) {
-           db.close();
-       }); 
-    });
-}
-
-function createImageList(reponse) {
-    var imgList = [];
-    for (var i = 0; i < response.length; i++) {
-        var element = response[i];
-        imgList.push({"name": element.name, "url": element.contentUrl});
-    }
-    return imgList;
-}
-
-function getLatestSearches(mongo, res) {
-    mongo.connect(mongoUrl, function(err, db) {
-        db.collection('querys').find({_id: 'query'}, function(err, result) {
-            var searches = [];
-            for (var i = 0; i < result.length; i++) {
-                searches.push(result[i])
+    function addQueryToDatabase(searchTerm, page) {
+        queryCollection.findOne({_id: 'queryHistory'}, function(err, doc) {
+            if (err) throw err;
+            var queryHistroyEntry = {term: searchTerm, when: new Date()};
+            
+            if(doc === null) {
+                queryCollection.insertOne({_id: 'queryHistory', querys: [{term: searchTerm, when: new Date()}]});
+            } else {
+                doc.querys.unshift({
+                    term: searchTerm,
+                    when: new Date()
+                });
+                doc.querys.length = doc.querys.length <= 2 ? doc.querys.length : 10;
+                queryCollection.updateOne({_id: 'queryHistory'}, { $set:{querys: doc.querys}});
             }
-            res.json(searches);
-            db.close();
-        })
-    })
-}
+        }); 
+    }
 
+    function returnImageList(searchTerm, page, res) {
+        queryCollection.findOne({searchTerm: searchTerm, page: page}, function (err, doc) {
+            if (doc !== null) {
+                res.json(doc.cachedResult);
+            } else {
+                var options = {
+                    uri: 'https://pixabay.com/api/?key=' + apiKey + '&q=' + searchTerm + '&page=' + page + '&per_page=10'
+                }
+                request(options, function(err, searchResponse, body) {
+                    if(err) throw err;
+                    var imageList = createImageList(JSON.parse(body).hits);
+                    queryCollection.insertOne({searchTerm: searchTerm, page: page, cachedResult: imageList})
+                    res.json(imageList);
+                });
+            }
+        });
+
+    }
+
+    function createImageList(response) {
+        var imgList = [];
+        for (var i = 0; i < response.length; i++) {
+            imgList.push({"tags": response[i].tags, "url": response[i].webformatURL, "thumbnail": response[i].previewURL, "context": response[i].pageURL});
+        }
+        return imgList;
+    }
+
+    app.get('/latest/imagesearch', returnLatestSearches);
+
+    function returnLatestSearches(req, res) {
+           queryCollection.findOne({_id: 'queryHistory'}, function(err, doc) {
+                if (err) throw err;
+
+                if (doc === null) {
+                    res.json('There are no recent searches');
+                } else {
+                res.json(doc.querys);
+                }
+            });
+    }
+}
