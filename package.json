@@ -1,0 +1,28 @@
+{
+  "name": "imagesearchabstractionlayer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jmintb/ImageSearchAbstractionLayer.git"
+  },
+  "author": "Jessie Chatham Spencer (jmintb)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jmintb/ImageSearchAbstractionLayer/issues"
+  },
+  "homepage": "https://github.com/jmintb/ImageSearchAbstractionLayer#readme",
+  "dependencies": {
+    "express": "^4.15.3",
+    "mongodb":"^2.2.28",
+    "request":"^2.81.0"
+  },
+  "engines": {
+    "node": "^8.1.2"
+  }
+}
